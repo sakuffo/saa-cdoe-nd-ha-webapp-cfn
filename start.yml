@@ -3,16 +3,25 @@ Parameters:
   # but using them will make your cloudformation templates more reusable
   # use them for things that may change over time, such as instance type,
   # VPCs and so on.
-  VPCName:
-    Description: Name of the VPC
+  NameOfApp:
     Type: String
-    Default: "UdagramVPC"
+    Description: Name of the App
+    Default: "Udagram"
 
 Resources:
   # instace profile contains the IAM Role name(s) that we want to associate to our auto scaling EC2 Servers
   # never give too much permissions to your EC2 instances! if they get hacked, the permissions get hacked also!
   # in this example, I create a Role called UdacityS3ReadOnlyC2 and just give it a policy of S3 Read-Only Access
-  UdagramVPC:
+
+  # IAM
+  ProfileWithRolesForOurApp:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      Roles:
+        - UdacityS3ReadOnlyEC2
+  
+  # VPC
+  UdaVPC:
     Type: AWS::EC2::VPC
     Properties:
       CidrBlock: 10.10.0.0/16
@@ -20,29 +29,47 @@ Resources:
       EnableDnsHostnames: 'true'
       Tags:
       - Key: Name
-        Value: !Ref VPCName
+        Value: !Sub ${NameOfApp}-VPC
       - Key: course-work
         Value: true
       - Key: nd
         Value: cdoe
-  
-  ProfileWithRolesForOurApp:
-    Type: AWS::IAM::InstanceProfile
-    Properties: 
-      Roles:
-        - UdacityS3ReadOnlyEC2
 
   # Networking
+  
+  #IGW
+  UdaIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-IGW
+
+  UdaIGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref UdaIGW
+      VpcId: !Ref UdaVPC
+
+  UdaNatGatwayEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  UdaNatGatway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt UdaNatGatwayEIP.AllocationId
+      SubnetId: !Ref UdaPublicSubnet
 
   #Subnets
   UdaPublicSubnet:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref UdagramVPC
-      CidrBlock: 10.10.1.1/24
+      VpcId: !Ref UdaVPC
+      CidrBlock: 10.10.37.1/24
       Tags:
         - Key: Name
-          Value: UdaPublicSubnet
+          Value: !Sub ${NameOfApp}-PublicSubnet
         - Key: program
           Value: cdoe
         - Key: scope
@@ -51,20 +78,73 @@ Resources:
   UdaPrivateSubnet:
     Type: AWS::EC2::Subnet
     Properties:
-      VpcId: !Ref UdagramVPC
-      CidrBlock: 10.10.10.1/24
+      VpcId: !Ref UdaVPC
+      CidrBlock: 10.10.73.1/24
       Tags:
         - Key: Name
-          Value: UdaPrivateSubnet
+          Value: !Sub ${NameOfApp}-PrivateSubnet
         - Key: program
           Value: cdoe
         - Key: scope
           Value: private
 
+  # Routes
+  UdaPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties: 
+      Tags: 
+      - Key: Name
+        Value: !Sub ${NameOfApp}-PublicRT
+      - Key: program
+        Value: cdoe
+      - Key: scope
+        Value: public
+      VpcId: !Ref UdaVPC
+
+  UdaPrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties: 
+      Tags: 
+      - Key: Name
+        Value: !Sub ${NameOfApp}-PrivateRT
+      - Key: program
+        Value: cdoe
+      - Key: scope
+        Value: private
+      VpcId: !Ref UdaVPC
+
+  UdaPublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref UdaPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref UdaIGW
+  
+  
+  UdaPrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref UdaPrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref UdaNatGatway
+
+  
+  UdaPublicRouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref UdaPublicSubnet
+      RouteTableId: !Ref UdaPublicRouteTable
+
+  UdaPrivateRouteAssoc:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref UdaPrivateSubnet
+      RouteTableId: !Ref UdaPrivateRouteTable
+
 Outputs: 
   UdaVPCID:
     Description: The ID of the VPC
-    Value: !Ref UdagramVPC
+    Value: !Ref UdaVPC
     Export:
       Name: !Sub "${AWS::StackName}-VPCID"
   # This is also optional.
