@@ -141,6 +141,36 @@ Resources:
       SubnetId: !Ref UdaPrivateSubnet
       RouteTableId: !Ref UdaPrivateRouteTable
 
+
+  UdaPublicSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${NameOfApp}-PUB-SG
+      GroupDescription: !Sub ${NameOfApp} Public Security
+      VpcId: !Ref UdaVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-PUB-SG
+
+  UdaPrivateSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${NameOfApp}-PRIV-SG
+      GroupDescription: !Sub ${NameOfApp} Private Security
+      VpcId: !Ref UdaVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref UdaPublicSG
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-PRIV-SG
 Outputs: 
   UdaVPCID:
     Description: The ID of the VPC
