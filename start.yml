@@ -36,15 +36,31 @@ Resources:
 
   #Subnets
   UdaPublicSubnet:
-      Type: AWS::EC2::Subnet
-      Properties:
-        VpcId: !Ref UdagramVPC
-        CidrBlock: 10.10.0.1/24
-        Tags:
-          - Key: Name
-            Value: UdaPublicSubnet
-          - Key: program
-            Value: cdoe
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref UdagramVPC
+      CidrBlock: 10.10.1.1/24
+      Tags:
+        - Key: Name
+          Value: UdaPublicSubnet
+        - Key: program
+          Value: cdoe
+        - Key: scope
+          Value: public
+  
+  UdaPrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref UdagramVPC
+      CidrBlock: 10.10.10.1/24
+      Tags:
+        - Key: Name
+          Value: UdaPrivateSubnet
+        - Key: program
+          Value: cdoe
+        - Key: scope
+          Value: private
+
 Outputs: 
   UdaVPCID:
     Description: The ID of the VPC
