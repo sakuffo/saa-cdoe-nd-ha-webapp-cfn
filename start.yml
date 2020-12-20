@@ -19,7 +19,7 @@ Resources:
       EnableDnsSupport: 'true'
       EnableDnsHostnames: 'true'
       Tags:
-      - Key: name
+      - Key: Name
         Value: !Ref VPCName
       - Key: course-work
         Value: true
@@ -32,6 +32,11 @@ Resources:
       Roles:
         - UdacityS3ReadOnlyEC2
 Outputs: 
+  UdaVPCID:
+    Description: The ID of the VPC
+    Value: !Ref UdagramVPC
+    Export:
+      Name: !Sub "${AWS::StackName}-VPCID"
   # This is also optional.
   # Bonus points for useful outputs!
   # for example, if you create a Load Balancer
