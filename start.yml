@@ -25,12 +25,26 @@ Resources:
         Value: true
       - Key: nd
         Value: cdoe
-
+  
   ProfileWithRolesForOurApp:
     Type: AWS::IAM::InstanceProfile
     Properties: 
       Roles:
         - UdacityS3ReadOnlyEC2
+
+  # Networking
+
+  #Subnets
+  PublicSubnet:
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId: !Ref UdagramVPC
+        CidrBlock: 10.10.01.00/24
+        Tags:
+          - Key: Name
+            Value: PublicSubnet
+          - Key: program
+            Value: cdoe
 Outputs: 
   UdaVPCID:
     Description: The ID of the VPC
