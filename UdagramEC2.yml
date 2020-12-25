@@ -39,15 +39,14 @@ Resources:
       Roles:
         - !Ref UdacityS3ReadOnlyEC2
 
-  TestEC2:
+  BastionHost:
     Type: AWS::EC2::Instance
     Properties:
       IamInstanceProfile: !Ref ProfileWithRolesForOurApp
       InstanceType: t2.micro
       ImageId: ami-0ff8a91507f77f867
+      KeyName: UdaAppVPC
       Tags:
         - Key: Name
-          Value: Test
-        - Key: layer
-          Value: web
+          Value: Bastion
       SubnetId: !ImportValue UdaPUBNETID
