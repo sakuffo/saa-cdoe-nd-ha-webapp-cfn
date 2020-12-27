@@ -7,10 +7,6 @@ Parameters:
     Type: String
     Description: Name of the App
     Default: "Udagram"
-  KeyName:
-    Description: Amazon EC2 KeyPair
-    Type: String
-    Default: "udak"
   UdaWebServers:
     Default: '2'
     Description: The initial number of WebServer instances
@@ -29,19 +25,16 @@ Parameters:
       - t2.micro
       - t2.small
       - t2.medium
-
 Mappings:
   RegionMap:
     us-east-1:
-      AMI: ami-0ff8a91507f77f867
-    us-east-2:
-      AMI: ami-02e680c4540db351e
+      AMI: ami-0885b1f6bd170450c
     us-west-2:
-      AMI: ami-a0cfeed8
+      AMI: ami-0ac73f33a1888c64a
 Resources:
 
 # IAM
-  UdacityS3ReadOnlyEC2:
+  UdagramS3ReadOnlyEC2:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -53,10 +46,10 @@ Resources:
                 - "ec2.amazonaws.com"
             Action:
               - "sts:AssumeRole"
-      Description: UdacityS3ReadOnlyEC2
+      Description: UdagramS3ReadOnlyEC2
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
-      RoleName: UdacityS3ReadOnlyEC2
+      RoleName: UdagramS3ReadOnlyEC2
       Tags:
         - Key: course-work
           Value: "true"
@@ -67,41 +60,42 @@ Resources:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Roles:
-        - !Ref UdacityS3ReadOnlyEC2
+        - !Ref UdagramS3ReadOnlyEC2
   
-  BastionRole:
-    Type: AWS::IAM::Role
-    Properties: 
-      AssumeRolePolicyDocument: 
-        Version: "2012-10-17"
-        Statement: 
-          - 
-            Effect: "Allow"
-            Principal: 
-              Service: 
-                - "ec2.amazonaws.com"
-            Action: 
-              - "sts:AssumeRole"
-      Path: "/"
-          
-  BastionPolicy:
-    Type: AWS::IAM::Policy
-    Properties:
-      PolicyName: BastionPolicy
-      PolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Action: '*'
-            Resource: '*'
-      Roles: 
-        - !Ref BastionRole
-      
-  BastionProfile:
-    Type: AWS::IAM::InstanceProfile
-    Properties:
-      Roles:
-        - !Ref BastionRole
+  # Basition Host Disabled for Production
+  # BastionRole:
+  #   Type: AWS::IAM::Role
+  #   Properties: 
+  #     AssumeRolePolicyDocument: 
+  #       Version: "2012-10-17"
+  #       Statement: 
+  #         - 
+  #           Effect: "Allow"
+  #           Principal: 
+  #             Service: 
+  #               - "ec2.amazonaws.com"
+  #           Action: 
+  #             - "sts:AssumeRole"
+  #     Path: "/"
+  # Basition Host Disabled for Production        
+  # BastionPolicy:
+  #   Type: AWS::IAM::Policy
+  #   Properties:
+  #     PolicyName: BastionPolicy
+  #     PolicyDocument:
+  #       Version: 2012-10-17
+  #       Statement:
+  #         - Effect: Allow
+  #           Action: '*'
+  #           Resource: '*'
+  #     Roles: 
+  #       - !Ref BastionRole
+  # Basition Host Disabled for Production    
+  # BastionProfile:
+  #   Type: AWS::IAM::InstanceProfile
+  #   Properties:
+  #     Roles:
+  #       - !Ref BastionRole
 
 # VPC
   UdaVPC:
@@ -360,28 +354,6 @@ Resources:
         - Key: Name
           Value: !Sub ${NameOfApp}-PRIV-SG
 
-# EC2
-  BastionHost:
-    Type: AWS::EC2::Instance
-    Properties:
-      ImageId:
-        Fn::FindInMap:
-          - RegionMap
-          - !Ref AWS::Region
-          - AMI
-      InstanceType: !Ref DefaultInstanceType
-      KeyName: !Ref KeyName
-      Tags:
-        - Key: Name
-          Value: BastionHost
-        - Key: layer
-          Value: admin
-      SecurityGroupIds:
-          - !Ref UdaPrivateSG
-          - !Ref UdaPublicSG
-      SubnetId: !Ref UdaPublicSubnetA
-      IamInstanceProfile: !Ref BastionProfile
-
 # ALB
   UdaALB:
     Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
@@ -420,7 +392,30 @@ Resources:
         - Key: scope
           Value: private
 
-# Web Servers
+# EC2
+  # Basition Host Disabled for Production
+
+  # BastionHost:
+  #   Type: AWS::EC2::Instance
+  #   Properties:
+  #     ImageId:
+  #       Fn::FindInMap:
+  #         - RegionMap
+  #         - !Ref AWS::Region
+  #         - AMI
+  #     InstanceType: !Ref DefaultInstanceType
+  #     KeyName: 'udak'
+  #     Tags:
+  #       - Key: Name
+  #         Value: BastionHost
+  #       - Key: layer
+  #         Value: admin
+  #     SecurityGroupIds:
+  #         - !Ref UdaPrivateSG
+  #         - !Ref UdaPublicSG
+  #     SubnetId: !Ref UdaPublicSubnetA
+  #     IamInstanceProfile: !Ref BastionProfile
+
   UdaWebServerGroup:
     Type: 'AWS::AutoScaling::AutoScalingGroup'
     Properties:
@@ -451,7 +446,7 @@ Resources:
       'AWS::CloudFormation::Init':
         config:
           packages:
-            yum:
+            apt:
               httpd: []
           files:
             /var/www/html/index.html:
@@ -472,13 +467,17 @@ Resources:
       InstanceType: !Ref DefaultInstanceType
       SecurityGroups:
         - !Ref UdaPrivateSG
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: 10
       UserData: !Base64 
         'Fn::Join':
           - ''
           - - |
               #!/bin/bash -xe
             - |
-              yum update -y aws-cfn-bootstrap
+              apt-get update -y aws-cfn-bootstrap
             - |
               # Install the files and packages from the metadata
             - '/opt/aws/bin/cfn-init -v '
@@ -505,9 +504,6 @@ Outputs:
     Value: !Ref UdaVPC
     Export:
       Name: !Sub "${AWS::StackName}-VPCID"
-  BastionHostDNS:
-    Description: The PublicDNS of the Bastion Host
-    Value: !GetAtt BastionHost.PublicDnsName
   UdaALBDNS:
     Description: The DNS of the App through ALB
     Value: !GetAtt UdaALB.DNSName
