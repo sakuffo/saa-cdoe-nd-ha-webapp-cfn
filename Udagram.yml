@@ -11,20 +11,18 @@ Parameters:
   KeyName:
     Description: Amazon EC2 KeyPair
     Type: String
-    Default: "Udagram"
 
-  InstanceType:
+  DefaultInstanceType:
     Description: "EC2 Instance type"
-    Type: "String"
-    Default: "t3.micro"
-    AllowedValues: [
-      "t2.micro",
-      "t2.small",
-      "t2.medium",
-      "t3.micro",
-      "t3.small",
-      "t3.medium"
-    ]
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+      - t2.micro
+      - t2.small
+      - t2.medium
 
 Mappings:
   RegionMap:
@@ -38,24 +36,59 @@ Resources:
   # instace profile contains the IAM Role name(s) that we want to associate to our auto scaling EC2 Servers
   # never give too much permissions to your EC2 instances! if they get hacked, the permissions get hacked also!
   # in this example, I create a Role called UdacityS3ReadOnlyC2 and just give it a policy of S3 Read-Only Access
- 
+
+  # IAM
+  UdacityS3ReadOnlyEC2:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Description: UdacityS3ReadOnlyEC2
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+      RoleName: UdacityS3ReadOnlyEC2
+      Tags:
+        - Key: course-work
+          Value: "true"
+        - Key: nd
+          Value: cdoe
+
+  ProfileWithRolesForOurApp:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref UdacityS3ReadOnlyEC2
+
+  BastionProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - admin
+
   # VPC
   UdaVPC:
     Type: AWS::EC2::VPC
     Properties:
       CidrBlock: 10.10.0.0/16
-      EnableDnsSupport: 'true'
-      EnableDnsHostnames: 'true'
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
       Tags:
-      - Key: Name
-        Value: !Sub ${NameOfApp}-VPC
-      - Key: course-work
-        Value: true
-      - Key: nd
-        Value: cdoe
+        - Key: Name
+          Value: !Sub ${NameOfApp}-VPC
+        - Key: course-work
+          Value: "true"
+        - Key: nd
+          Value: cdoe
 
   # Networking
-  
+
   #IGW
   UdaIGW:
     Type: AWS::EC2::InternetGateway
@@ -85,6 +118,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref UdaVPC
+      MapPublicIpOnLaunch: true
       CidrBlock: 10.10.37.1/24
       Tags:
         - Key: Name
@@ -93,7 +127,7 @@ Resources:
           Value: cdoe
         - Key: scope
           Value: public
-  
+
   UdaPrivateSubnet:
     Type: AWS::EC2::Subnet
     Properties:
@@ -110,26 +144,26 @@ Resources:
   # Routes
   UdaPublicRouteTable:
     Type: AWS::EC2::RouteTable
-    Properties: 
-      Tags: 
-      - Key: Name
-        Value: !Sub ${NameOfApp}-PublicRT
-      - Key: program
-        Value: cdoe
-      - Key: scope
-        Value: public
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-PublicRT
+        - Key: program
+          Value: cdoe
+        - Key: scope
+          Value: public
       VpcId: !Ref UdaVPC
 
   UdaPrivateRouteTable:
     Type: AWS::EC2::RouteTable
-    Properties: 
-      Tags: 
-      - Key: Name
-        Value: !Sub ${NameOfApp}-PrivateRT
-      - Key: program
-        Value: cdoe
-      - Key: scope
-        Value: private
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-PrivateRT
+        - Key: program
+          Value: cdoe
+        - Key: scope
+          Value: private
       VpcId: !Ref UdaVPC
 
   UdaPublicRoute:
@@ -138,8 +172,7 @@ Resources:
       RouteTableId: !Ref UdaPublicRouteTable
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref UdaIGW
-  
-  
+
   UdaPrivateRoute:
     Type: AWS::EC2::Route
     Properties:
@@ -147,7 +180,6 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       NatGatewayId: !Ref UdaNatGatway
 
-  
   UdaPublicRouteAssoc:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -160,41 +192,7 @@ Resources:
       SubnetId: !Ref UdaPrivateSubnet
       RouteTableId: !Ref UdaPrivateRouteTable
 
-  UdacityS3ReadOnlyEC2:
-    Type: AWS::IAM::Role
-    Properties: 
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement: 
-          - 
-            Effect: "Allow"
-            Principal: 
-              Service: 
-                - "ec2.amazonaws.com"
-            Action: 
-              - "sts:AssumeRole"
-      Description: UdacityS3ReadOnlyEC2
-      ManagedPolicyArns: 
-        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
-      RoleName: UdacityS3ReadOnlyEC2
-      Tags: 
-        - Key: course-work
-          Value: true
-        - Key: nd
-          Value: cdoe
-
-  ProfileWithRolesForOurApp:
-    Type: AWS::IAM::InstanceProfile
-    Properties: 
-      Roles:
-        - !Ref UdacityS3ReadOnlyEC2
-
-  BastionProfile:
-    Type: AWS::IAM::InstanceProfile
-    Properties: 
-      Roles: 
-        - admin
-
+  #Security Groups
   UdaPublicSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -205,6 +203,10 @@ Resources:
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
           CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
@@ -225,59 +227,33 @@ Resources:
         - Key: Name
           Value: !Sub ${NameOfApp}-PRIV-SG
 
+  #EC2
   BastionHost:
     Type: AWS::EC2::Instance
     Properties:
-      InstanceType: t2.micro
       ImageId:
         Fn::FindInMap:
-        - RegionMap
-        - !Ref AWS::Region
-        - AMI
+          - RegionMap
+          - !Ref AWS::Region
+          - AMI
+      InstanceType: !Ref DefaultInstanceType
+      KeyName: !Ref KeyName
       Tags:
         - Key: Name
           Value: BastionHost
         - Key: layer
           Value: admin
-      KeyName: !Ref KeyName
-      NetworkInterfaces: 
-        - AssociatePublicIpAddress: "true"
-          DeviceIndex: "0"
-          GroupSet: 
-            - Ref: "UdaPublicSG"
-          SubnetId: !Sub "${UdaPublicSubnet}"
+      SecurityGroupIds:
+          - !Ref UdaPrivateSG
+          - !Ref UdaPublicSG
+      SubnetId: !Ref UdaPublicSubnet
 
-Outputs: 
+Outputs:
   UdaVPCID:
     Description: The ID of the VPC
     Value: !Ref UdaVPC
     Export:
       Name: !Sub "${AWS::StackName}-VPCID"
-  NameOfApp:
-    Description: The Name of the App
-    Value: !Ref NameOfApp
-    Export:
-      Name: AppName
-  UdaPUBNETID:
-    Description: The ID of the VPC
-    Value: !Ref UdaPublicSubnet
-    Export:
-      Name: UdaPUBNETID
-  # This is also optional.
-  # Bonus points for useful outputs!
-  # for example, if you create a Load Balancer
-  # it's nice to output the URL to it here, so that we don't have to go to the console to get it.
-
-# Sample UserData
-# When creating your Launch Configuration, you may need a UserData script
-# here's one that you can use for Ubuntu Linux that will:
-# Install Apache Web Server, Start it, and create an index.html that will be displayed
-# when you visit the IP address of this server with your web browser
-#Here it is:
-#
-#          #!/bin/bash
-#          apt-get update -y
-#          apt-get install apache2 -y
-#          systemctl start apache2.service
-#          cd /var/www/html
-#          echo "Udacity Demo Web Server Up and Running!" > index.html
+  BastionHostDNS:
+    Description: The PublicDNS of the Bastion Host
+    Value: !GetAtt BastionHost.PublicDnsName
