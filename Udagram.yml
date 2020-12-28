@@ -7,15 +7,17 @@ Parameters:
     Type: String
     Description: Name of the App
     Default: "Udagram"
-
-  KeyName:
-    Description: Amazon EC2 KeyPair
-    Type: String
-
+  UdaWebServers:
+    Default: '2'
+    Description: The initial number of WebServer instances
+    Type: Number
+    MinValue: '1'
+    MaxValue: '4'
+    ConstraintDescription: must be between 1 and 5 EC2 instances.
   DefaultInstanceType:
     Description: "EC2 Instance type"
     Type: String
-    Default: t2.micro
+    Default: t3.small
     AllowedValues:
       - t3.micro
       - t3.small
@@ -23,22 +25,16 @@ Parameters:
       - t2.micro
       - t2.small
       - t2.medium
-
 Mappings:
   RegionMap:
     us-east-1:
-      AMI: ami-0ff8a91507f77f867
-    us-east-2:
-      AMI: ami-02e680c4540db351e
+      AMI: ami-0885b1f6bd170450c
     us-west-2:
-      AMI: ami-a0cfeed8
+      AMI: ami-0ac73f33a1888c64a
 Resources:
-  # instace profile contains the IAM Role name(s) that we want to associate to our auto scaling EC2 Servers
-  # never give too much permissions to your EC2 instances! if they get hacked, the permissions get hacked also!
-  # in this example, I create a Role called UdacityS3ReadOnlyC2 and just give it a policy of S3 Read-Only Access
 
-  # IAM
-  UdacityS3ReadOnlyEC2:
+# IAM
+  UdagramS3ReadOnlyEC2:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -50,10 +46,10 @@ Resources:
                 - "ec2.amazonaws.com"
             Action:
               - "sts:AssumeRole"
-      Description: UdacityS3ReadOnlyEC2
+      Description: UdagramS3ReadOnlyEC2
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
-      RoleName: UdacityS3ReadOnlyEC2
+      RoleName: UdagramS3ReadOnlyEC2
       Tags:
         - Key: course-work
           Value: "true"
@@ -64,15 +60,44 @@ Resources:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Roles:
-        - !Ref UdacityS3ReadOnlyEC2
+        - !Ref UdagramS3ReadOnlyEC2
+  
+  # Basition Host Disabled for Production
+  # BastionRole:
+  #   Type: AWS::IAM::Role
+  #   Properties: 
+  #     AssumeRolePolicyDocument: 
+  #       Version: "2012-10-17"
+  #       Statement: 
+  #         - 
+  #           Effect: "Allow"
+  #           Principal: 
+  #             Service: 
+  #               - "ec2.amazonaws.com"
+  #           Action: 
+  #             - "sts:AssumeRole"
+  #     Path: "/"
+  # Basition Host Disabled for Production        
+  # BastionPolicy:
+  #   Type: AWS::IAM::Policy
+  #   Properties:
+  #     PolicyName: BastionPolicy
+  #     PolicyDocument:
+  #       Version: 2012-10-17
+  #       Statement:
+  #         - Effect: Allow
+  #           Action: '*'
+  #           Resource: '*'
+  #     Roles: 
+  #       - !Ref BastionRole
+  # Basition Host Disabled for Production    
+  # BastionProfile:
+  #   Type: AWS::IAM::InstanceProfile
+  #   Properties:
+  #     Roles:
+  #       - !Ref BastionRole
 
-  BastionProfile:
-    Type: AWS::IAM::InstanceProfile
-    Properties:
-      Roles:
-        - admin
-
-  # VPC
+# VPC
   UdaVPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -87,61 +112,142 @@ Resources:
         - Key: nd
           Value: cdoe
 
-  # Networking
-
-  #IGW
+# IGW
   UdaIGW:
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags:
         - Key: Name
           Value: !Sub ${NameOfApp}-IGW
-
   UdaIGWAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
       InternetGatewayId: !Ref UdaIGW
       VpcId: !Ref UdaVPC
 
+# NAT
   UdaNatGatwayEIP:
     Type: AWS::EC2::EIP
     Properties:
       Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-EIP
+        - Key: course-work
+          Value: "true"
+        - Key: nd
+          Value: cdoe
   UdaNatGatway:
     Type: AWS::EC2::NatGateway
     Properties:
       AllocationId: !GetAtt UdaNatGatwayEIP.AllocationId
-      SubnetId: !Ref UdaPublicSubnet
+      SubnetId: !Ref UdaPublicSubnetA
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-NAT
+        - Key: course-work
+          Value: "true"
+        - Key: nd
+          Value: cdoe
 
-  #Subnets
-  UdaPublicSubnet:
+# Public Subnets
+  UdaPublicSubnetA:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref UdaVPC
+      AvailabilityZone: !Select 
+        - 0
+        - Fn::GetAZs: !Ref 'AWS::Region'
       MapPublicIpOnLaunch: true
-      CidrBlock: 10.10.37.1/24
+      CidrBlock: 10.10.30.1/24
       Tags:
         - Key: Name
-          Value: !Sub ${NameOfApp}-PUB-NET
+          Value: !Sub ${NameOfApp}-PUB-NET-A
+        - Key: program
+          Value: cdoe
+        - Key: scope
+          Value: public
+  UdaPublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref UdaVPC
+      AvailabilityZone: !Select 
+        - 1
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      MapPublicIpOnLaunch: true
+      CidrBlock: 10.10.31.1/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-PUB-NET-B
+        - Key: program
+          Value: cdoe
+        - Key: scope
+          Value: public
+  UdaPublicSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref UdaVPC
+      AvailabilityZone: !Select 
+        - 2
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      MapPublicIpOnLaunch: true
+      CidrBlock: 10.10.32.1/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-PUB-NET-C
         - Key: program
           Value: cdoe
         - Key: scope
           Value: public
 
-  UdaPrivateSubnet:
+# Private Subnets
+  UdaPrivateSubnetA:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref UdaVPC
-      CidrBlock: 10.10.73.1/24
+      AvailabilityZone: !Select 
+        - 0
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      CidrBlock: 10.10.60.1/24
       Tags:
         - Key: Name
-          Value: !Sub ${NameOfApp}-PRIV-NET
+          Value: !Sub ${NameOfApp}-PRIV-NET-A
         - Key: program
           Value: cdoe
         - Key: scope
           Value: private
-
-  # Routes
+  UdaPrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref UdaVPC
+      AvailabilityZone: !Select 
+        - 1
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      CidrBlock: 10.10.61.1/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-PRIV-NET-B
+        - Key: program
+          Value: cdoe
+        - Key: scope
+          Value: private
+  UdaPrivateSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref UdaVPC
+      AvailabilityZone: !Select 
+        - 2
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      CidrBlock: 10.10.62.1/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-PRIV-NET-C
+        - Key: program
+          Value: cdoe
+        - Key: scope
+          Value: private
+  
+# Routes
   UdaPublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -153,7 +259,6 @@ Resources:
         - Key: scope
           Value: public
       VpcId: !Ref UdaVPC
-
   UdaPrivateRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
@@ -165,14 +270,12 @@ Resources:
         - Key: scope
           Value: private
       VpcId: !Ref UdaVPC
-
   UdaPublicRoute:
     Type: AWS::EC2::Route
     Properties:
       RouteTableId: !Ref UdaPublicRouteTable
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref UdaIGW
-
   UdaPrivateRoute:
     Type: AWS::EC2::Route
     Properties:
@@ -180,19 +283,39 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       NatGatewayId: !Ref UdaNatGatway
 
-  UdaPublicRouteAssoc:
+  UdaPublicRouteAssocA:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      SubnetId: !Ref UdaPublicSubnet
+      SubnetId: !Ref UdaPublicSubnetA
+      RouteTableId: !Ref UdaPublicRouteTable
+  UdaPublicRouteAssocB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref UdaPublicSubnetB
+      RouteTableId: !Ref UdaPublicRouteTable
+  UdaPublicRouteAssocC:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref UdaPublicSubnetC
       RouteTableId: !Ref UdaPublicRouteTable
 
-  UdaPrivateRouteAssoc:
+  UdaPrivateRouteAssocA:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      SubnetId: !Ref UdaPrivateSubnet
+      SubnetId: !Ref UdaPrivateSubnetA
+      RouteTableId: !Ref UdaPrivateRouteTable
+  UdaPrivateRouteAssocB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref UdaPrivateSubnetB
+      RouteTableId: !Ref UdaPrivateRouteTable
+  UdaPrivateRouteAssocC:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref UdaPrivateSubnetC
       RouteTableId: !Ref UdaPrivateRouteTable
 
-  #Security Groups
+# Security Groups
   UdaPublicSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -223,30 +346,157 @@ Resources:
           FromPort: 80
           ToPort: 80
           SourceSecurityGroupId: !Ref UdaPublicSG
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          SourceSecurityGroupId: !Ref UdaPublicSG
       Tags:
         - Key: Name
           Value: !Sub ${NameOfApp}-PRIV-SG
 
-  #EC2
-  BastionHost:
-    Type: AWS::EC2::Instance
+# ALB
+  UdaALB:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
     Properties:
-      ImageId:
-        Fn::FindInMap:
+      Subnets: 
+        - !Ref UdaPublicSubnetA
+        - !Ref UdaPublicSubnetB
+        - !Ref UdaPublicSubnetC
+      Name: UdaALB
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref UdaPublicSG
+        - !Ref UdaPrivateSG
+  UdaALBListener:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref UdaALBTG
+      LoadBalancerArn: !Ref UdaALB
+      Port: 80
+      Protocol: HTTP
+  UdaALBTG:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      HealthCheckIntervalSeconds: 10
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 5
+      VpcId: !Ref UdaVPC
+      Tags:
+        - Key: program
+          Value: cdoe
+        - Key: scope
+          Value: private
+
+# EC2
+  # Basition Host Disabled for Production
+
+  # BastionHost:
+  #   Type: AWS::EC2::Instance
+  #   Properties:
+  #     ImageId:
+  #       Fn::FindInMap:
+  #         - RegionMap
+  #         - !Ref AWS::Region
+  #         - AMI
+  #     InstanceType: !Ref DefaultInstanceType
+  #     KeyName: 'udak'
+  #     Tags:
+  #       - Key: Name
+  #         Value: BastionHost
+  #       - Key: layer
+  #         Value: admin
+  #     SecurityGroupIds:
+  #         - !Ref UdaPrivateSG
+  #         - !Ref UdaPublicSG
+  #     SubnetId: !Ref UdaPublicSubnetA
+  #     IamInstanceProfile: !Ref BastionProfile
+
+  UdaWebServerGroup:
+    Type: 'AWS::AutoScaling::AutoScalingGroup'
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref UdaPrivateSubnetB
+        - !Ref UdaPrivateSubnetA
+        - !Ref UdaPrivateSubnetC
+      LaunchConfigurationName: !Ref UdaLaunchConfig
+      MinSize: '1'
+      MaxSize: '5'
+      DesiredCapacity: !Ref UdaWebServers
+      TargetGroupARNs:
+        - !Ref UdaALBTG
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT5M
+        Count: !Ref UdaWebServers
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MinInstancesInService: 1
+        MaxBatchSize: 3
+        PauseTime: PT15M
+        WaitOnResourceSignals: true
+  UdaLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Metadata:
+      Comment: Configure the bootstrap helpers to install the Apache 
+      'AWS::CloudFormation::Init':
+        config:
+          packages:
+            apt:
+              httpd: []
+          files:
+            /var/www/html/index.html:
+              content: <html><h1>it works! Udagram, Udacity</h1></html>
+              mode: '000600'
+              owner: apache
+              group: apache
+          services:
+            sysvinit:
+              httpd:
+                enabled: 'true'
+                ensureRunning: 'true'
+    Properties:
+      ImageId: !FindInMap
           - RegionMap
           - !Ref AWS::Region
           - AMI
       InstanceType: !Ref DefaultInstanceType
-      KeyName: !Ref KeyName
-      Tags:
-        - Key: Name
-          Value: BastionHost
-        - Key: layer
-          Value: admin
-      SecurityGroupIds:
-          - !Ref UdaPrivateSG
-          - !Ref UdaPublicSG
-      SubnetId: !Ref UdaPublicSubnet
+      SecurityGroups:
+        - !Ref UdaPrivateSG
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: 10
+      UserData: !Base64 
+        'Fn::Join':
+          - ''
+          - - |
+              #!/bin/bash -xe
+            - |
+              apt-get update -y aws-cfn-bootstrap
+            - |
+              # Install the files and packages from the metadata
+            - '/opt/aws/bin/cfn-init -v '
+            - '         --stack '
+            - !Ref 'AWS::StackName'
+            - '         --resource LaunchConfig '
+            - '         --region '
+            - !Ref 'AWS::Region'
+            - |+
+
+            - |
+              # Signal the status from cfn-init
+            - '/opt/aws/bin/cfn-signal -e $? '
+            - '         --stack '
+            - !Ref 'AWS::StackName'
+            - '         --resource WebServerGroup '
+            - '         --region '
+            - !Ref 'AWS::Region'
+            - |+
 
 Outputs:
   UdaVPCID:
@@ -254,6 +504,6 @@ Outputs:
     Value: !Ref UdaVPC
     Export:
       Name: !Sub "${AWS::StackName}-VPCID"
-  BastionHostDNS:
-    Description: The PublicDNS of the Bastion Host
-    Value: !GetAtt BastionHost.PublicDnsName
+  UdaALBDNS:
+    Description: The DNS of the App through ALB
+    Value: !GetAtt UdaALB.DNSName
