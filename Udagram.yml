@@ -7,7 +7,7 @@ Parameters:
     Type: String
     Description: Name of the App
     Default: "Udagram"
-  UdaWebServers:
+  UdaWebServerCount:
     Default: '2'
     Description: The initial number of WebServer instances
     Type: Number
@@ -56,7 +56,7 @@ Resources:
         - Key: nd
           Value: cdoe
 
-  ProfileWithRolesForOurApp:
+  UdagramWebProfie:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Roles:
@@ -426,13 +426,13 @@ Resources:
       LaunchConfigurationName: !Ref UdaLaunchConfig
       MinSize: '1'
       MaxSize: '5'
-      DesiredCapacity: !Ref UdaWebServers
+      DesiredCapacity: !Ref UdaWebServerCount
       TargetGroupARNs:
         - !Ref UdaALBTG
     CreationPolicy:
       ResourceSignal:
         Timeout: PT5M
-        Count: !Ref UdaWebServers
+        Count: !Ref UdaWebServerCount
     UpdatePolicy:
       AutoScalingRollingUpdate:
         MinInstancesInService: 1
@@ -441,30 +441,31 @@ Resources:
         WaitOnResourceSignals: true
   UdaLaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
-    Metadata:
-      Comment: Configure the bootstrap helpers to install the Apache 
-      'AWS::CloudFormation::Init':
-        config:
-          packages:
-            apt:
-              httpd: []
-          files:
-            /var/www/html/index.html:
-              content: <html><h1>it works! Udagram, Udacity</h1></html>
-              mode: '000600'
-              owner: apache
-              group: apache
-          services:
-            sysvinit:
-              httpd:
-                enabled: 'true'
-                ensureRunning: 'true'
+    # Metadata:
+    #   Comment: Configure the bootstrap helpers to install the Apache 
+    #   'AWS::CloudFormation::Init':
+    #     config:
+    #       packages:
+    #         apt:
+    #           httpd: []
+    #       files:
+    #         /var/www/html/index.html:
+    #           content: <html><h1>it works! Udagram, Udacity</h1></html>
+    #           mode: '000600'
+    #           owner: apache
+    #           group: apache
+    #       services:
+    #         sysvinit:
+    #           httpd:
+    #             enabled: 'true'
+    #             ensureRunning: 'true'
     Properties:
       ImageId: !FindInMap
           - RegionMap
           - !Ref AWS::Region
           - AMI
       InstanceType: !Ref DefaultInstanceType
+      IamInstanceProfile: !Ref UdagramWebProfie
       SecurityGroups:
         - !Ref UdaPrivateSG
       BlockDeviceMappings:
@@ -477,26 +478,40 @@ Resources:
           - - |
               #!/bin/bash -xe
             - |
-              apt-get update -y aws-cfn-bootstrap
+              sudo apt update -y
             - |
-              # Install the files and packages from the metadata
-            - '/opt/aws/bin/cfn-init -v '
-            - '         --stack '
-            - !Ref 'AWS::StackName'
-            - '         --resource LaunchConfig '
-            - '         --region '
-            - !Ref 'AWS::Region'
-            - |+
+              sudo apt install apache2
+            - |
+              echo <html><h1>it works! Udagram, Udacity</h1></html> > /var/www/html/index.html
+            - |
+              sudo ufw allow 'Apache'
+            - |
+              systemctl start apache2
+            - |
 
-            - |
-              # Signal the status from cfn-init
-            - '/opt/aws/bin/cfn-signal -e $? '
-            - '         --stack '
-            - !Ref 'AWS::StackName'
-            - '         --resource WebServerGroup '
-            - '         --region '
-            - !Ref 'AWS::Region'
-            - |+
+          # - - |
+          #     #!/bin/bash -xe
+          #   - |
+          #     sudo apt-get update -y aws-cfn-bootstrap
+          #   - |
+          #     # Install the files and packages from the metadata
+          #   - '/opt/aws/bin/cfn-init -v '
+          #   - '         --stack '
+          #   - !Ref 'AWS::StackName'
+          #   - '         --resource UdaLaunchConfig '
+          #   - '         --region '
+          #   - !Ref 'AWS::Region'
+          #   - |+
+
+          #   - |
+          #     # Signal the status from cfn-init
+          #   - '/opt/aws/bin/cfn-signal -e $? '
+          #   - '         --stack '
+          #   - !Ref 'AWS::StackName'
+          #   - '         --resource UdaWebServerGroup '
+          #   - '         --region '
+          #   - !Ref 'AWS::Region'
+          #   - |+
 
 Outputs:
   UdaVPCID:
