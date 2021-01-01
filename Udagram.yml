@@ -441,24 +441,6 @@ Resources:
         WaitOnResourceSignals: true
   UdaLaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
-    # Metadata:
-    #   Comment: Configure the bootstrap helpers to install the Apache 
-    #   'AWS::CloudFormation::Init':
-    #     config:
-    #       packages:
-    #         apt:
-    #           httpd: []
-    #       files:
-    #         /var/www/html/index.html:
-    #           content: <html><h1>it works! Udagram, Udacity</h1></html>
-    #           mode: '000600'
-    #           owner: apache
-    #           group: apache
-    #       services:
-    #         sysvinit:
-    #           httpd:
-    #             enabled: 'true'
-    #             ensureRunning: 'true'
     Properties:
       ImageId: !FindInMap
           - RegionMap
@@ -488,31 +470,6 @@ Resources:
             - |
               systemctl start apache2
             - |
-
-          # - - |
-          #     #!/bin/bash -xe
-          #   - |
-          #     sudo apt-get update -y aws-cfn-bootstrap
-          #   - |
-          #     # Install the files and packages from the metadata
-          #   - '/opt/aws/bin/cfn-init -v '
-          #   - '         --stack '
-          #   - !Ref 'AWS::StackName'
-          #   - '         --resource UdaLaunchConfig '
-          #   - '         --region '
-          #   - !Ref 'AWS::Region'
-          #   - |+
-
-          #   - |
-          #     # Signal the status from cfn-init
-          #   - '/opt/aws/bin/cfn-signal -e $? '
-          #   - '         --stack '
-          #   - !Ref 'AWS::StackName'
-          #   - '         --resource UdaWebServerGroup '
-          #   - '         --region '
-          #   - !Ref 'AWS::Region'
-          #   - |+
-
 Outputs:
   UdaVPCID:
     Description: The ID of the VPC
