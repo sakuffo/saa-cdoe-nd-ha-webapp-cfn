@@ -416,60 +416,60 @@ Resources:
   #     SubnetId: !Ref UdaPublicSubnetA
   #     IamInstanceProfile: !Ref BastionProfile
 
-  UdaWebServerGroup:
-    Type: 'AWS::AutoScaling::AutoScalingGroup'
-    Properties:
-      VPCZoneIdentifier:
-        - !Ref UdaPrivateSubnetB
-        - !Ref UdaPrivateSubnetA
-        - !Ref UdaPrivateSubnetC
-      LaunchConfigurationName: !Ref UdaLaunchConfig
-      MinSize: '1'
-      MaxSize: '5'
-      DesiredCapacity: !Ref UdaWebServerCount
-      TargetGroupARNs:
-        - !Ref UdaALBTG
-    CreationPolicy:
-      ResourceSignal:
-        Timeout: PT5M
-        Count: !Ref UdaWebServerCount
-    UpdatePolicy:
-      AutoScalingRollingUpdate:
-        MinInstancesInService: 1
-        MaxBatchSize: 3
-        PauseTime: PT15M
-        WaitOnResourceSignals: true
-  UdaLaunchConfig:
-    Type: AWS::AutoScaling::LaunchConfiguration
-    Properties:
-      ImageId: !FindInMap
-          - RegionMap
-          - !Ref AWS::Region
-          - AMI
-      InstanceType: !Ref DefaultInstanceType
-      IamInstanceProfile: !Ref UdagramWebProfie
-      SecurityGroups:
-        - !Ref UdaPrivateSG
-      BlockDeviceMappings:
-        - DeviceName: /dev/sda1
-          Ebs:
-            VolumeSize: 10
-      UserData: !Base64 
-        'Fn::Join':
-          - ''
-          - - |
-              #!/bin/bash -xe
-            - |
-              sudo apt update -y
-            - |
-              sudo apt install apache2
-            - |
-              echo <html><h1>it works! Udagram, Udacity</h1></html> > /var/www/html/index.html
-            - |
-              sudo ufw allow 'Apache'
-            - |
-              systemctl start apache2
-            - |
+  # UdaWebServerGroup:
+  #   Type: 'AWS::AutoScaling::AutoScalingGroup'
+  #   Properties:
+  #     VPCZoneIdentifier:
+  #       - !Ref UdaPrivateSubnetB
+  #       - !Ref UdaPrivateSubnetA
+  #       - !Ref UdaPrivateSubnetC
+  #     LaunchConfigurationName: !Ref UdaLaunchConfig
+  #     MinSize: '1'
+  #     MaxSize: '5'
+  #     DesiredCapacity: !Ref UdaWebServerCount
+  #     TargetGroupARNs:
+  #       - !Ref UdaALBTG
+  #   CreationPolicy:
+  #     ResourceSignal:
+  #       Timeout: PT5M
+  #       Count: !Ref UdaWebServerCount
+  #   UpdatePolicy:
+  #     AutoScalingRollingUpdate:
+  #       MinInstancesInService: 1
+  #       MaxBatchSize: 3
+  #       PauseTime: PT15M
+  #       WaitOnResourceSignals: true
+  # UdaLaunchConfig:
+  #   Type: AWS::AutoScaling::LaunchConfiguration
+  #   Properties:
+  #     ImageId: !FindInMap
+  #         - RegionMap
+  #         - !Ref AWS::Region
+  #         - AMI
+  #     InstanceType: !Ref DefaultInstanceType
+  #     IamInstanceProfile: !Ref UdagramWebProfie
+  #     SecurityGroups:
+  #       - !Ref UdaPrivateSG
+  #     BlockDeviceMappings:
+  #       - DeviceName: /dev/sda1
+  #         Ebs:
+  #           VolumeSize: 10
+  #     UserData: !Base64 
+  #       'Fn::Join':
+  #         - ''
+  #         - - |
+  #             #!/bin/bash -xe
+  #           - |
+  #             sudo apt update -y
+  #           - |
+  #             sudo apt install apache2
+  #           - |
+  #             echo <html><h1>it works! Udagram, Udacity</h1></html> > /var/www/html/index.html
+  #           - |
+  #             sudo ufw allow 'Apache'
+  #           - |
+  #             systemctl start apache2
+  #           - |
 Outputs:
   UdaVPCID:
     Description: The ID of the VPC
