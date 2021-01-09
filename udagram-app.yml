@@ -1,0 +1,306 @@
+Parameters:
+  # Paramenters are entirely optional.
+  # but using them will make your cloudformation templates more reusable
+  # use them for things that may change over time, such as instance type,
+  # VPCs and so on.
+  NameOfApp:
+    Type: String
+    Description: Name of the App
+    Default: "Udagram-saa"
+  # KeyName:
+  #   Description: A pre-existing for the Bastion host.
+  #   Type: AWS::EC2::KeyPair::KeyName
+  #   Default: udagram-bast
+  UdaWebServerCount:
+    Default: 2
+    Description: The initial number of WebServer instances
+    Type: Number
+    MinValue: 1
+    MaxValue: 5
+    ConstraintDescription: must be between 1 and 5 EC2 instances.
+  UdaWebServerMin:
+    Default: 1
+    Description: The initial number of WebServer instances
+    Type: Number
+  UdaWebServerMax:
+    Default: 5
+    Description: The initial number of WebServer instances
+    Type: Number
+  CreateBastion:
+    Type: String
+    Default: "no"
+    Description: Do you Want to deploy a bastion host.
+    AllowedValues:
+      - "yes"
+      - "no"
+  UserIp:
+    Description: Enter your Public IP address to be able to ssh into basition if it is up. Defaults to 0.0.0.0/0 for Simplicity
+    Type: String
+    Default: 0.0.0.0/0
+    MinLength: '9'
+    MaxLength: '18'
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+  DefaultInstanceType:
+    Description: "EC2 Instance type"
+    Type: String
+    Default: t3.small
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+      - t2.micro
+      - t2.small
+      - t2.medium
+
+Conditions:
+  CreateBastionHost: !Equals
+    - !Ref CreateBastion
+    - "yes"
+
+Mappings:
+  RegionMap:
+    us-east-1:
+      AMI: ami-00ddb0e5626798373
+    us-west-2:
+      AMI: ami-0ac73f33a1888c64a
+    ca-central-1:
+      AMI: ami-0e625dfca3e5a33bd 
+
+Resources:
+# Conditional SSH Security Group Rules
+  PrivSSHIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Condition: CreateBastionHost
+    Properties: 
+      GroupId: !Ref UdaPrivateSG
+      IpProtocol: tcp
+      SourceSecurityGroupId: !Ref BastionPublicSG
+      ToPort: 22
+      FromPort: 22
+  PrivSSHEngress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Condition: CreateBastionHost
+    Properties: 
+      GroupId: !Ref UdaPrivateSG
+      IpProtocol: tcp
+      DestinationSecurityGroupId: !Ref BastionPublicSG
+      ToPort: 22
+      FromPort: 22
+
+# Security Groups
+  UdaPublicSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http to our load balancer
+      VpcId:
+        Fn::ImportValue: !Sub "${NameOfApp}-VPCID"
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-PUB-SG
+
+  BastionPublicSG:
+    Type: AWS::EC2::SecurityGroup
+    Condition: CreateBastionHost
+    Properties:
+      GroupDescription: Allow the Bastion Host to Talk to the WebServers
+      VpcId:
+        Fn::ImportValue: !Sub "${NameOfApp}-VPCID"
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: !Ref UserIp
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        SourceSecurityGroupId: !Ref UdaPrivateSG
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: !Ref UserIp
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        DestinationSecurityGroupId: !Ref UdaPrivateSG
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        DestinationSecurityGroupId: !Ref UdaPublicSG
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-BAST-PUB-SG
+
+  UdaPrivateSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${NameOfApp}-PRIV-SG
+      GroupDescription: !Sub ${NameOfApp} Private Security
+      VpcId: 
+        Fn::ImportValue: !Sub "${NameOfApp}-VPCID"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref UdaPublicSG
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          DestinationSecurityGroupId: !Ref UdaPublicSG
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-PRIV-SG
+
+# ALB
+  UdaALB:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties:
+      Subnets: 
+        - Fn::ImportValue: 
+            !Sub "${NameOfApp}-PUB-NET-A"
+        - Fn::ImportValue: 
+            !Sub "${NameOfApp}-PUB-NET-B"
+        - Fn::ImportValue: 
+            !Sub "${NameOfApp}-PUB-NET-C"
+      Name: UdaALB
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref UdaPublicSG
+  UdaALBListener:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref UdaALBTG
+      LoadBalancerArn: !Ref UdaALB
+      Port: 80
+      Protocol: HTTP
+  UdaListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+      - Type: forward
+        TargetGroupArn: !Ref UdaALBTG
+      Conditions:
+      - Field: path-pattern
+        Values: [/]
+      ListenerArn: !Ref UdaALBListener
+      Priority: 1
+  UdaALBTG:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      HealthCheckIntervalSeconds: 30
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 6
+      HealthyThresholdCount: 2
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 3
+      VpcId: 
+        Fn::ImportValue: !Sub "${NameOfApp}-VPCID"
+      Tags:
+        - Key: program
+          Value: cdoe
+        - Key: scope
+          Value: private
+
+# EC2
+#   Basition Host Disabled for Production
+
+  BastionHost:
+    Type: AWS::EC2::Instance
+    Condition: CreateBastionHost
+    Properties:
+      ImageId:
+        Fn::FindInMap:
+          - RegionMap
+          - !Ref AWS::Region
+          - AMI
+      InstanceType: !Ref DefaultInstanceType
+      # KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: BastionHost
+        - Key: layer
+          Value: admin
+      SecurityGroupIds:
+          - !Ref BastionPublicSG
+      SubnetId:         
+        Fn::ImportValue: !Sub "${NameOfApp}-PUB-NET-A"
+      IamInstanceProfile:
+        Fn::ImportValue: !Sub "${NameOfApp}-BasProfile"
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          apt-get update -y
+          apt-get install unzip -y
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          ./aws/install
+          apt-get install ec2-instance-connect
+          
+  UdaWebServerGroup:
+    Type: 'AWS::AutoScaling::AutoScalingGroup'
+    Properties:
+      VPCZoneIdentifier:
+        - Fn::ImportValue: 
+            !Sub "${NameOfApp}-PRIV-NET-A"
+        - Fn::ImportValue: 
+            !Sub "${NameOfApp}-PRIV-NET-B"
+        - Fn::ImportValue: 
+            !Sub "${NameOfApp}-PRIV-NET-C"
+      LaunchConfigurationName: !Ref UdaLaunchConfig
+      MinSize: !Ref UdaWebServerMin
+      MaxSize: !Ref UdaWebServerMax
+      DesiredCapacity: !Ref UdaWebServerCount
+      TargetGroupARNs:
+        - !Ref UdaALBTG
+
+  UdaLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId: !FindInMap
+          - RegionMap
+          - !Ref AWS::Region
+          - AMI
+      InstanceType: !Ref DefaultInstanceType
+      IamInstanceProfile:
+        Fn::ImportValue: !Sub "${NameOfApp}-WebProfile"
+      SecurityGroups:
+        - !Ref UdaPrivateSG
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: 10
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          apt-get update -y
+          apt-get install unzip -y
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          ./aws/install
+          apt-get install apache2 -y
+          systemctl start apache2.service
+          cd /var/www/html
+          aws s3 cp s3://udacity-demo-1/udacity.zip .
+          unzip -o udacity.zip
+          apt-get install ec2-instance-connect
+Outputs:
+  UdaALBDNS:
+    Description: The DNS of the App through ALB
+    Value: 
+      Fn::Join: ["", ["http://", !GetAtt UdaALB.DNSName] ]

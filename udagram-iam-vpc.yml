@@ -1,0 +1,128 @@
+Parameters:
+  # Paramenters are entirely optional.
+  # but using them will make your cloudformation templates more reusable
+  # use them for things that may change over time, such as instance type,
+  # VPCs and so on.
+  NameOfApp:
+    Type: String
+    Description: Name of the App
+    Default: "Udagram-saa"
+  VPCCidr:
+    Type: String
+    Description: Cidr of your VPC
+    Default: "10.7.0.0/16" 
+
+Resources:
+# IAM
+  UdagramWebRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Tags:
+        - Key: course-work
+          Value: "true"
+        - Key: nd
+          Value: cdoe
+
+  BastionRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - 
+            Effect: "Allow"
+            Principal: 
+              Service: 
+                - "ec2.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Path: "/"
+      Tags:
+        - Key: course-work
+          Value: "true"
+        - Key: nd
+          Value: cdoe      
+
+  UdagramWebS3Policy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: UdagramWebS3Policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 's3:Get*'
+              - 's3:List*'
+            Resource: '*'
+      Roles:
+        - !Ref UdagramWebRole
+  
+  BastionPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: BastionPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action: '*'
+            Resource: '*'
+      Roles: 
+        - !Ref BastionRole
+
+
+  UdagramWebServerProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      Roles:
+        - !Ref UdagramWebRole
+ 
+  BastionProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref BastionRole
+
+# VPC
+  UdaVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-VPC-2
+        - Key: course-work
+          Value: "true"
+        - Key: nd
+          Value: cdoe
+
+
+Outputs:
+  UdaVPCID:
+    Description: The ID of the VPC
+    Value: !Ref UdaVPC
+    Export:
+      Name: !Sub "${NameOfApp}-VPCID"
+  UdaBastionProfile:
+    Description: The Name of the Instance Profile
+    Value: !Ref BastionProfile
+    Export:
+      Name: !Sub "${NameOfApp}-BasProfile"
+  UdaWebProfile:
+    Description: The Name of the Instance Profile
+    Value: !Ref UdagramWebServerProfile
+    Export:
+      Name: !Sub "${NameOfApp}-WebProfile"
