@@ -7,12 +7,16 @@ Parameters:
     Type: String
     Description: Name of the App
     Default: "Udagram"
+  KeyName:
+    Description: A pre-existing for the Bastion host.
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: ubu-test-1
   UdaWebServerCount:
     Default: '2'
     Description: The initial number of WebServer instances
     Type: Number
     MinValue: '1'
-    MaxValue: '4'
+    MaxValue: '3'
     ConstraintDescription: must be between 1 and 5 EC2 instances.
   DefaultInstanceType:
     Description: "EC2 Instance type"
@@ -34,68 +38,75 @@ Mappings:
 Resources:
 
 # IAM
-  UdagramS3ReadOnlyEC2:
-    Type: AWS::IAM::Role
+  UdacityS3ReadOnlyEC2:
+    Type: 'AWS::IAM::Role'
     Properties:
       AssumeRolePolicyDocument:
-        Version: "2012-10-17"
+        Version: 2012-10-17
         Statement:
-          - Effect: "Allow"
+          - Effect: Allow
             Principal:
               Service:
-                - "ec2.amazonaws.com"
+              - ec2.amazonaws.com
             Action:
-              - "sts:AssumeRole"
-      Description: UdagramS3ReadOnlyEC2
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
-      RoleName: UdagramS3ReadOnlyEC2
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: '*'
+                Resource: '*'
       Tags:
         - Key: course-work
           Value: "true"
         - Key: nd
           Value: cdoe
 
-  UdagramWebProfie:
+  ProfileWithRolesForOurApp:
+    Type: AWS::IAM::InstanceProfile
+    DependsOn:
+      - UdacityS3ReadOnlyEC2
+    Properties: 
+      Roles:
+        - "UdacityS3ReadOnlyEC2"
+    
+  # Basition Host Disabled for Production
+  BastionRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - 
+            Effect: "Allow"
+            Principal: 
+              Service: 
+                - "ec2.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Path: "/"
+  # Basition Host Disabled for Production        
+  BastionPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: BastionPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action: '*'
+            Resource: '*'
+      Roles: 
+        - !Ref BastionRole
+  # Basition Host Disabled for Production    
+  BastionProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Roles:
-        - !Ref UdagramS3ReadOnlyEC2
-  
-  # Basition Host Disabled for Production
-  # BastionRole:
-  #   Type: AWS::IAM::Role
-  #   Properties: 
-  #     AssumeRolePolicyDocument: 
-  #       Version: "2012-10-17"
-  #       Statement: 
-  #         - 
-  #           Effect: "Allow"
-  #           Principal: 
-  #             Service: 
-  #               - "ec2.amazonaws.com"
-  #           Action: 
-  #             - "sts:AssumeRole"
-  #     Path: "/"
-  # Basition Host Disabled for Production        
-  # BastionPolicy:
-  #   Type: AWS::IAM::Policy
-  #   Properties:
-  #     PolicyName: BastionPolicy
-  #     PolicyDocument:
-  #       Version: 2012-10-17
-  #       Statement:
-  #         - Effect: Allow
-  #           Action: '*'
-  #           Resource: '*'
-  #     Roles: 
-  #       - !Ref BastionRole
-  # Basition Host Disabled for Production    
-  # BastionProfile:
-  #   Type: AWS::IAM::InstanceProfile
-  #   Properties:
-  #     Roles:
-  #       - !Ref BastionRole
+        - !Ref BastionRole
 
 # VPC
   UdaVPC:
@@ -319,18 +330,18 @@ Resources:
   UdaPublicSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: !Sub ${NameOfApp}-PUB-SG
-      GroupDescription: !Sub ${NameOfApp} Public Security
+      GroupDescription: Allow http to our load balancer
       VpcId: !Ref UdaVPC
       SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          CidrIp: 0.0.0.0/0
-        - IpProtocol: tcp
-          FromPort: 22
-          ToPort: 22
-          CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
           Value: !Sub ${NameOfApp}-PUB-SG
@@ -350,6 +361,11 @@ Resources:
           FromPort: 22
           ToPort: 22
           SourceSecurityGroupId: !Ref UdaPublicSG
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
           Value: !Sub ${NameOfApp}-PRIV-SG
@@ -366,7 +382,6 @@ Resources:
       Scheme: internet-facing
       SecurityGroups:
         - !Ref UdaPublicSG
-        - !Ref UdaPrivateSG
   UdaALBListener:
     Type: 'AWS::ElasticLoadBalancingV2::Listener'
     Properties:
@@ -376,15 +391,28 @@ Resources:
       LoadBalancerArn: !Ref UdaALB
       Port: 80
       Protocol: HTTP
+  UdaListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+      - Type: forward
+        TargetGroupArn: !Ref UdaALBTG
+      Conditions:
+      - Field: path-pattern
+        Values: [/]
+      ListenerArn: !Ref UdaALBListener
+      Priority: 1
   UdaALBTG:
     Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
     Properties:
-      HealthCheckIntervalSeconds: 10
-      HealthCheckTimeoutSeconds: 5
+      HealthCheckIntervalSeconds: 30
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 6
       HealthyThresholdCount: 2
       Port: 80
       Protocol: HTTP
-      UnhealthyThresholdCount: 5
+      UnhealthyThresholdCount: 3
       VpcId: !Ref UdaVPC
       Tags:
         - Key: program
@@ -393,29 +421,38 @@ Resources:
           Value: private
 
 # EC2
-  # Basition Host Disabled for Production
+#   Basition Host Disabled for Production
 
-  # BastionHost:
-  #   Type: AWS::EC2::Instance
-  #   Properties:
-  #     ImageId:
-  #       Fn::FindInMap:
-  #         - RegionMap
-  #         - !Ref AWS::Region
-  #         - AMI
-  #     InstanceType: !Ref DefaultInstanceType
-  #     KeyName: 'udak'
-  #     Tags:
-  #       - Key: Name
-  #         Value: BastionHost
-  #       - Key: layer
-  #         Value: admin
-  #     SecurityGroupIds:
-  #         - !Ref UdaPrivateSG
-  #         - !Ref UdaPublicSG
-  #     SubnetId: !Ref UdaPublicSubnetA
-  #     IamInstanceProfile: !Ref BastionProfile
-
+  BastionHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId:
+        Fn::FindInMap:
+          - RegionMap
+          - !Ref AWS::Region
+          - AMI
+      InstanceType: !Ref DefaultInstanceType
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: BastionHost
+        - Key: layer
+          Value: admin
+      SecurityGroupIds:
+          - !Ref UdaPrivateSG
+          - !Ref UdaPublicSG
+      SubnetId: !Ref UdaPublicSubnetA
+      IamInstanceProfile: !Ref BastionProfile
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          apt-get update -y
+          apt-get install unzip
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          ./aws/install
+          apt-get install ec2-instance-connect
+          
   UdaWebServerGroup:
     Type: 'AWS::AutoScaling::AutoScalingGroup'
     Properties:
@@ -425,20 +462,11 @@ Resources:
         - !Ref UdaPrivateSubnetC
       LaunchConfigurationName: !Ref UdaLaunchConfig
       MinSize: '1'
-      MaxSize: '5'
+      MaxSize: '3'
       DesiredCapacity: !Ref UdaWebServerCount
       TargetGroupARNs:
         - !Ref UdaALBTG
-    CreationPolicy:
-      ResourceSignal:
-        Timeout: PT5M
-        Count: !Ref UdaWebServerCount
-    UpdatePolicy:
-      AutoScalingRollingUpdate:
-        MinInstancesInService: 1
-        MaxBatchSize: 3
-        PauseTime: PT15M
-        WaitOnResourceSignals: true
+
   UdaLaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
@@ -447,29 +475,24 @@ Resources:
           - !Ref AWS::Region
           - AMI
       InstanceType: !Ref DefaultInstanceType
-      IamInstanceProfile: !Ref UdagramWebProfie
+      IamInstanceProfile: !Ref ProfileWithRolesForOurApp
       SecurityGroups:
         - !Ref UdaPrivateSG
       BlockDeviceMappings:
         - DeviceName: /dev/sda1
           Ebs:
             VolumeSize: 10
-      UserData: !Base64 
-        'Fn::Join':
-          - ''
-          - - |
-              #!/bin/bash -xe
-            - |
-              sudo apt update -y
-            - |
-              sudo apt install apache2
-            - |
-              echo <html><h1>it works! Udagram, Udacity</h1></html> > /var/www/html/index.html
-            - |
-              sudo ufw allow 'Apache'
-            - |
-              systemctl start apache2
-            - |
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          apt-get update -y
+          apt-get install unzip awscli -y
+          apt-get install ec2-instance-connect
+          apt-get install apache2 -y
+          systemctl start apache2.service
+          cd /var/www/html
+          aws s3 cp s3://udacity-demo-1/udacity.zip .
+          unzip -o udacity.zip
 Outputs:
   UdaVPCID:
     Description: The ID of the VPC
