@@ -6,15 +6,15 @@ Parameters:
   NameOfApp:
     Type: String
     Description: Name of the App
-    Default: "Udagram"
+    Default: "Udagram-saa"
   PubCidrBlocks:
     Type: CommaDelimitedList
     Description: The Cidr range of the Public Range. Please note, it must fall within your VPC Cidr range.
-    Default: "10.10.30.0/24, 10.10.31.0/24, 10.10.32.0/24"
+    Default: "10.7.30.0/24, 10.7.31.0/24, 10.7.32.0/24"
   PrivCidrBlocks:
     Type: CommaDelimitedList
     Description: The Cidr range of the Public Range. Please note, it must fall within your VPC Cidr range.
-    Default: "10.10.60.0/24, 10.10.61.0/24, 10.10.62.0/24"
+    Default: "10.7.60.0/24, 10.7.61.0/24, 10.7.62.0/24"
 
 
 Resources:

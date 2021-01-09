@@ -6,11 +6,11 @@ Parameters:
   NameOfApp:
     Type: String
     Description: Name of the App
-    Default: "Udagram"
+    Default: "Udagram-saa"
   KeyName:
     Description: A pre-existing for the Bastion host.
     Type: AWS::EC2::KeyPair::KeyName
-    Default: ubu-test-1
+    Default: udagram-bast
   UdaWebServerCount:
     Default: 2
     Description: The initial number of WebServer instances
@@ -218,12 +218,12 @@ Resources:
           #!/bin/bash
           apt-get update -y
           apt-get install unzip awscli -y
-          apt-get install ec2-instance-connect
           apt-get install apache2 -y
           systemctl start apache2.service
           cd /var/www/html
           aws s3 cp s3://udacity-demo-1/udacity.zip .
           unzip -o udacity.zip
+          apt-get install ec2-instance-connect
 Outputs:
   UdaALBDNS:
     Description: The DNS of the App through ALB
