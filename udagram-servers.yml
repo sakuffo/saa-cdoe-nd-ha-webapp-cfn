@@ -12,12 +12,20 @@ Parameters:
     Type: AWS::EC2::KeyPair::KeyName
     Default: ubu-test-1
   UdaWebServerCount:
-    Default: '2'
+    Default: 2
     Description: The initial number of WebServer instances
     Type: Number
-    MinValue: '1'
-    MaxValue: '3'
+    MinValue: 1
+    MaxValue: 5
     ConstraintDescription: must be between 1 and 5 EC2 instances.
+  UdaWebServerMin:
+    Default: 1
+    Description: The initial number of WebServer instances
+    Type: Number
+  UdaWebServerMax:
+    Default: 5
+    Description: The initial number of WebServer instances
+    Type: Number
   DefaultInstanceType:
     Description: "EC2 Instance type"
     Type: String
@@ -183,8 +191,8 @@ Resources:
         - Fn::ImportValue: 
             !Sub "${NameOfApp}-PRIV-NET-C"
       LaunchConfigurationName: !Ref UdaLaunchConfig
-      MinSize: '1'
-      MaxSize: '3'
+      MinSize: !Ref UdaWebServerMin
+      MaxSize: !Ref UdaWebServerMax
       DesiredCapacity: !Ref UdaWebServerCount
       TargetGroupARNs:
         - !Ref UdaALBTG

@@ -7,6 +7,10 @@ Parameters:
     Type: String
     Description: Name of the App
     Default: "Udagram-saa"
+  VPCCidr:
+    Type: String
+    Description: Cidr of your VPC
+    Default: "10.7.0.0/16" 
 
 Resources:
 # IAM
@@ -84,7 +88,7 @@ Resources:
   UdaVPC:
     Type: AWS::EC2::VPC
     Properties:
-      CidrBlock: 10.10.0.0/16
+      CidrBlock: !Ref VPCCidr
       EnableDnsSupport: true
       EnableDnsHostnames: true
       Tags:
