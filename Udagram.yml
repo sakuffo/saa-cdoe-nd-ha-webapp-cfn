@@ -7,12 +7,16 @@ Parameters:
     Type: String
     Description: Name of the App
     Default: "Udagram"
+  KeyName:
+    Description: A pre-existing for the Bastion host.
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: ubu-test-1
   UdaWebServerCount:
     Default: '2'
     Description: The initial number of WebServer instances
     Type: Number
     MinValue: '1'
-    MaxValue: '4'
+    MaxValue: '3'
     ConstraintDescription: must be between 1 and 5 EC2 instances.
   DefaultInstanceType:
     Description: "EC2 Instance type"
@@ -35,19 +39,26 @@ Resources:
 
 # IAM
   UdacityS3ReadOnlyEC2:
-    Type: AWS::IAM::Role
+    Type: 'AWS::IAM::Role'
     Properties:
       AssumeRolePolicyDocument:
-        Version: "2012-10-17"
+        Version: 2012-10-17
         Statement:
-          - Effect: "Allow"
+          - Effect: Allow
             Principal:
               Service:
-                - "ec2.amazonaws.com"
+              - ec2.amazonaws.com
             Action:
-              - "sts:AssumeRole"
-      Description: UdacityS3ReadOnlyEC2
-      RoleName: UdacityS3ReadOnlyEC2
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: '*'
+                Resource: '*'
       Tags:
         - Key: course-work
           Value: "true"
@@ -63,39 +74,39 @@ Resources:
         - "UdacityS3ReadOnlyEC2"
     
   # Basition Host Disabled for Production
-  # BastionRole:
-  #   Type: AWS::IAM::Role
-  #   Properties: 
-  #     AssumeRolePolicyDocument: 
-  #       Version: "2012-10-17"
-  #       Statement: 
-  #         - 
-  #           Effect: "Allow"
-  #           Principal: 
-  #             Service: 
-  #               - "ec2.amazonaws.com"
-  #           Action: 
-  #             - "sts:AssumeRole"
-  #     Path: "/"
+  BastionRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - 
+            Effect: "Allow"
+            Principal: 
+              Service: 
+                - "ec2.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Path: "/"
   # Basition Host Disabled for Production        
-  # BastionPolicy:
-  #   Type: AWS::IAM::Policy
-  #   Properties:
-  #     PolicyName: BastionPolicy
-  #     PolicyDocument:
-  #       Version: 2012-10-17
-  #       Statement:
-  #         - Effect: Allow
-  #           Action: '*'
-  #           Resource: '*'
-  #     Roles: 
-  #       - !Ref BastionRole
+  BastionPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: BastionPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action: '*'
+            Resource: '*'
+      Roles: 
+        - !Ref BastionRole
   # Basition Host Disabled for Production    
-  # BastionProfile:
-  #   Type: AWS::IAM::InstanceProfile
-  #   Properties:
-  #     Roles:
-  #       - !Ref BastionRole
+  BastionProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref BastionRole
 
 # VPC
   UdaVPC:
@@ -412,27 +423,36 @@ Resources:
 # EC2
 #   Basition Host Disabled for Production
 
-#   BastionHost:
-#     Type: AWS::EC2::Instance
-#     Properties:
-#       ImageId:
-#         Fn::FindInMap:
-#           - RegionMap
-#           - !Ref AWS::Region
-#           - AMI
-#       InstanceType: !Ref DefaultInstanceType
-#       KeyName: 'udak'
-#       Tags:
-#         - Key: Name
-#           Value: BastionHost
-#         - Key: layer
-#           Value: admin
-#       SecurityGroupIds:
-#           - !Ref UdaPrivateSG
-#           - !Ref UdaPublicSG
-#       SubnetId: !Ref UdaPublicSubnetA
-#       IamInstanceProfile: !Ref BastionProfile
-
+  BastionHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId:
+        Fn::FindInMap:
+          - RegionMap
+          - !Ref AWS::Region
+          - AMI
+      InstanceType: !Ref DefaultInstanceType
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Name
+          Value: BastionHost
+        - Key: layer
+          Value: admin
+      SecurityGroupIds:
+          - !Ref UdaPrivateSG
+          - !Ref UdaPublicSG
+      SubnetId: !Ref UdaPublicSubnetA
+      IamInstanceProfile: !Ref BastionProfile
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          apt-get update -y
+          apt-get install unzip
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          ./aws/install
+          apt-get install ec2-instance-connect
+          
   UdaWebServerGroup:
     Type: 'AWS::AutoScaling::AutoScalingGroup'
     Properties:
@@ -446,7 +466,6 @@ Resources:
       DesiredCapacity: !Ref UdaWebServerCount
       TargetGroupARNs:
         - !Ref UdaALBTG
-
 
   UdaLaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
@@ -468,6 +487,7 @@ Resources:
           #!/bin/bash
           apt-get update -y
           apt-get install unzip awscli -y
+          apt-get install ec2-instance-connect
           apt-get install apache2 -y
           systemctl start apache2.service
           cd /var/www/html
