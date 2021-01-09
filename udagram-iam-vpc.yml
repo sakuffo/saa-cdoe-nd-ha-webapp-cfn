@@ -1,0 +1,114 @@
+Parameters:
+  # Paramenters are entirely optional.
+  # but using them will make your cloudformation templates more reusable
+  # use them for things that may change over time, such as instance type,
+  # VPCs and so on.
+  NameOfApp:
+    Type: String
+    Description: Name of the App
+    Default: "Udagram-saa"
+
+Resources:
+# IAM
+  UdacityS3ReadOnlyEC2:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: '*'
+                Resource: '*'
+      Tags:
+        - Key: course-work
+          Value: "true"
+        - Key: nd
+          Value: cdoe
+
+  ProfileWithRolesForOurApp:
+    Type: AWS::IAM::InstanceProfile
+    DependsOn:
+      - UdacityS3ReadOnlyEC2
+    Properties: 
+      Roles:
+        - "UdacityS3ReadOnlyEC2"
+    
+  # Basition Host Disabled for Production
+  BastionRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - 
+            Effect: "Allow"
+            Principal: 
+              Service: 
+                - "ec2.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Path: "/"
+  # Basition Host Disabled for Production        
+  BastionPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: BastionPolicy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action: '*'
+            Resource: '*'
+      Roles: 
+        - !Ref BastionRole
+  # Basition Host Disabled for Production    
+  BastionProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref BastionRole
+
+# VPC
+  UdaVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.10.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-VPC-2
+        - Key: course-work
+          Value: "true"
+        - Key: nd
+          Value: cdoe
+
+
+Outputs:
+  UdaVPCID:
+    Description: The ID of the VPC
+    Value: !Ref UdaVPC
+    Export:
+      Name: !Sub "${NameOfApp}-VPCID"
+  UdaBastionProfile:
+    Description: The Name of the Instance Profile
+    Value: !Ref BastionProfile
+    Export:
+      Name: !Sub "${NameOfApp}-BasProfile"
+  UdaWebProfile:
+    Description: The Name of the Instance Profile
+    Value: !Ref ProfileWithRolesForOurApp
+    Export:
+      Name: !Sub "${NameOfApp}-WebProfile"

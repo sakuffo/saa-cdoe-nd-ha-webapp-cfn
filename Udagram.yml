@@ -423,82 +423,77 @@ Resources:
 # EC2
 #   Basition Host Disabled for Production
 
-  BastionHost:
-    Type: AWS::EC2::Instance
-    Properties:
-      ImageId:
-        Fn::FindInMap:
-          - RegionMap
-          - !Ref AWS::Region
-          - AMI
-      InstanceType: !Ref DefaultInstanceType
-      KeyName: !Ref KeyName
-      Tags:
-        - Key: Name
-          Value: BastionHost
-        - Key: layer
-          Value: admin
-      SecurityGroupIds:
-          - !Ref UdaPrivateSG
-          - !Ref UdaPublicSG
-      SubnetId: !Ref UdaPublicSubnetA
-      IamInstanceProfile: !Ref BastionProfile
-      UserData:
-        Fn::Base64: !Sub |
-          #!/bin/bash
-          apt-get update -y
-          apt-get install unzip
-          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-          unzip awscliv2.zip
-          ./aws/install
-          apt-get install ec2-instance-connect
+  # BastionHost:
+  #   Type: AWS::EC2::Instance
+  #   Properties:
+  #     ImageId:
+  #       Fn::FindInMap:
+  #         - RegionMap
+  #         - !Ref AWS::Region
+  #         - AMI
+  #     InstanceType: !Ref DefaultInstanceType
+  #     KeyName: !Ref KeyName
+  #     Tags:
+  #       - Key: Name
+  #         Value: BastionHost
+  #       - Key: layer
+  #         Value: admin
+  #     SecurityGroupIds:
+  #         - !Ref UdaPrivateSG
+  #         - !Ref UdaPublicSG
+  #     SubnetId: !Ref UdaPublicSubnetA
+  #     IamInstanceProfile: !Ref BastionProfile
+  #     UserData:
+  #       Fn::Base64: !Sub |
+  #         #!/bin/bash
+  #         apt-get update -y
+  #         apt-get install unzip
+  #         curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+  #         unzip awscliv2.zip
+  #         ./aws/install
+  #         apt-get install ec2-instance-connect
           
-  UdaWebServerGroup:
-    Type: 'AWS::AutoScaling::AutoScalingGroup'
-    Properties:
-      VPCZoneIdentifier:
-        - !Ref UdaPrivateSubnetB
-        - !Ref UdaPrivateSubnetA
-        - !Ref UdaPrivateSubnetC
-      LaunchConfigurationName: !Ref UdaLaunchConfig
-      MinSize: '1'
-      MaxSize: '3'
-      DesiredCapacity: !Ref UdaWebServerCount
-      TargetGroupARNs:
-        - !Ref UdaALBTG
+  # UdaWebServerGroup:
+  #   Type: 'AWS::AutoScaling::AutoScalingGroup'
+  #   Properties:
+  #     VPCZoneIdentifier:
+  #       - !Ref UdaPrivateSubnetB
+  #       - !Ref UdaPrivateSubnetA
+  #       - !Ref UdaPrivateSubnetC
+  #     LaunchConfigurationName: !Ref UdaLaunchConfig
+  #     MinSize: '1'
+  #     MaxSize: '3'
+  #     DesiredCapacity: !Ref UdaWebServerCount
+  #     TargetGroupARNs:
+  #       - !Ref UdaALBTG
 
-  UdaLaunchConfig:
-    Type: AWS::AutoScaling::LaunchConfiguration
-    Properties:
-      ImageId: !FindInMap
-          - RegionMap
-          - !Ref AWS::Region
-          - AMI
-      InstanceType: !Ref DefaultInstanceType
-      IamInstanceProfile: !Ref ProfileWithRolesForOurApp
-      SecurityGroups:
-        - !Ref UdaPrivateSG
-      BlockDeviceMappings:
-        - DeviceName: /dev/sda1
-          Ebs:
-            VolumeSize: 10
-      UserData:
-        Fn::Base64: !Sub |
-          #!/bin/bash
-          apt-get update -y
-          apt-get install unzip awscli -y
-          apt-get install ec2-instance-connect
-          apt-get install apache2 -y
-          systemctl start apache2.service
-          cd /var/www/html
-          aws s3 cp s3://udacity-demo-1/udacity.zip .
-          unzip -o udacity.zip
+  # UdaLaunchConfig:
+  #   Type: AWS::AutoScaling::LaunchConfiguration
+  #   Properties:
+  #     ImageId: !FindInMap
+  #         - RegionMap
+  #         - !Ref AWS::Region
+  #         - AMI
+  #     InstanceType: !Ref DefaultInstanceType
+  #     IamInstanceProfile: !Ref ProfileWithRolesForOurApp
+  #     SecurityGroups:
+  #       - !Ref UdaPrivateSG
+  #     BlockDeviceMappings:
+  #       - DeviceName: /dev/sda1
+  #         Ebs:
+  #           VolumeSize: 10
+  #     UserData:
+  #       Fn::Base64: !Sub |
+  #         #!/bin/bash
+  #         apt-get update -y
+  #         apt-get install unzip awscli -y
+  #         apt-get install ec2-instance-connect
+  #         apt-get install apache2 -y
+  #         systemctl start apache2.service
+  #         cd /var/www/html
+  #         aws s3 cp s3://udacity-demo-1/udacity.zip .
+  #         unzip -o udacity.zip
 Outputs:
-  UdaVPCID:
-    Description: The ID of the VPC
-    Value: !Ref UdaVPC
-    Export:
-      Name: !Sub "${AWS::StackName}-VPCID"
   UdaALBDNS:
     Description: The DNS of the App through ALB
     Value: !GetAtt UdaALB.DNSName

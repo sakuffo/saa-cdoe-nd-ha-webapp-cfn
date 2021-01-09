@@ -1,0 +1,254 @@
+Parameters:
+  # Paramenters are entirely optional.
+  # but using them will make your cloudformation templates more reusable
+  # use them for things that may change over time, such as instance type,
+  # VPCs and so on.
+  NameOfApp:
+    Type: String
+    Description: Name of the App
+    Default: "Udagram"
+
+Resources:
+# IGW
+  UdaIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-IGW
+  UdaIGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref UdaIGW
+      VpcId: 
+        Fn::ImportValue: !Sub "${NameOfApp}-VPCID"
+
+# Public Subnets
+  UdaPublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: 
+        Fn::ImportValue: !Sub "${NameOfApp}-VPCID"
+      AvailabilityZone: !Select 
+        - 0
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      MapPublicIpOnLaunch: true
+      CidrBlock: 10.10.30.1/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-PUB-NET-A
+        - Key: program
+          Value: cdoe
+        - Key: scope
+          Value: public
+  UdaPublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub "${NameOfApp}-VPCID"
+      AvailabilityZone: !Select 
+        - 1
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      MapPublicIpOnLaunch: true
+      CidrBlock: 10.10.31.1/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-PUB-NET-B
+        - Key: program
+          Value: cdoe
+        - Key: scope
+          Value: public
+  UdaPublicSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub "${NameOfApp}-VPCID"
+      AvailabilityZone: !Select 
+        - 2
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      MapPublicIpOnLaunch: true
+      CidrBlock: 10.10.32.1/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-PUB-NET-C
+        - Key: program
+          Value: cdoe
+        - Key: scope
+          Value: public
+
+# Private Subnets
+  UdaPrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub "${NameOfApp}-VPCID"
+      AvailabilityZone: !Select 
+        - 0
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      CidrBlock: 10.10.60.1/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-PRIV-NET-A
+        - Key: program
+          Value: cdoe
+        - Key: scope
+          Value: private
+  UdaPrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub "${NameOfApp}-VPCID"
+      AvailabilityZone: !Select 
+        - 1
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      CidrBlock: 10.10.61.1/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-PRIV-NET-B
+        - Key: program
+          Value: cdoe
+        - Key: scope
+          Value: private
+  UdaPrivateSubnetC:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId:
+        Fn::ImportValue: !Sub "${NameOfApp}-VPCID"
+      AvailabilityZone: !Select 
+        - 2
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      CidrBlock: 10.10.62.1/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-PRIV-NET-C
+        - Key: program
+          Value: cdoe
+        - Key: scope
+          Value: private
+  
+# Routes
+  UdaPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-PublicRT
+        - Key: program
+          Value: cdoe
+        - Key: scope
+          Value: public
+      VpcId:
+        Fn::ImportValue: !Sub "${NameOfApp}-VPCID"
+  UdaPrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-PrivateRT
+        - Key: program
+          Value: cdoe
+        - Key: scope
+          Value: private
+      VpcId:
+        Fn::ImportValue: !Sub "${NameOfApp}-VPCID"
+  UdaPublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref UdaPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref UdaIGW
+  UdaPrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref UdaPrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref UdaNatGatway
+
+  UdaPublicRouteAssocA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref UdaPublicSubnetA
+      RouteTableId: !Ref UdaPublicRouteTable
+  UdaPublicRouteAssocB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref UdaPublicSubnetB
+      RouteTableId: !Ref UdaPublicRouteTable
+  UdaPublicRouteAssocC:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref UdaPublicSubnetC
+      RouteTableId: !Ref UdaPublicRouteTable
+
+  UdaPrivateRouteAssocA:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref UdaPrivateSubnetA
+      RouteTableId: !Ref UdaPrivateRouteTable
+  UdaPrivateRouteAssocB:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref UdaPrivateSubnetB
+      RouteTableId: !Ref UdaPrivateRouteTable
+  UdaPrivateRouteAssocC:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref UdaPrivateSubnetC
+      RouteTableId: !Ref UdaPrivateRouteTable
+
+# NAT
+  UdaNatGatwayEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-EIP
+        - Key: course-work
+          Value: "true"
+        - Key: nd
+          Value: cdoe
+  UdaNatGatway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt UdaNatGatwayEIP.AllocationId
+      SubnetId: !Ref UdaPublicSubnetA
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-NAT
+        - Key: course-work
+          Value: "true"
+        - Key: nd
+          Value: cdoe
+
+Outputs:
+  UdaPrivSubnetA:
+    Description: The ID of the VPC
+    Value: !Ref UdaPrivateSubnetA
+    Export:
+      Name: !Sub "${NameOfApp}-PRIV-NET-A"
+  UdaPrivSubnetB:
+    Description: The ID of the VPC
+    Value: !Ref UdaPrivateSubnetB
+    Export:
+      Name: !Sub "${NameOfApp}-PRIV-NET-B"
+  UdaPrivSubnetC:
+    Description: The ID of the VPC
+    Value: !Ref UdaPrivateSubnetC
+    Export:
+      Name: !Sub "${NameOfApp}-PRIV-NET-C"
+  UdaPubSubnetA:
+    Description: The ID of the VPC
+    Value: !Ref UdaPublicSubnetA
+    Export:
+      Name: !Sub "${NameOfApp}-PUB-NET-A"
+  UdaPubSubnetB:
+    Description: The ID of the VPC
+    Value: !Ref UdaPublicSubnetB
+    Export:
+      Name: !Sub "${NameOfApp}-PUB-NET-B"
+  UdaPubSubnetC:
+    Description: The ID of the VPC
+    Value: !Ref UdaPublicSubnetC
+    Export:
+      Name: !Sub "${NameOfApp}-PUB-NET-C"
