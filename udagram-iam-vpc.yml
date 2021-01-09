@@ -14,7 +14,7 @@ Parameters:
 
 Resources:
 # IAM
-  UdacityS3ReadOnlyEC2:
+  UdagramWebRole:
     Type: 'AWS::IAM::Role'
     Properties:
       AssumeRolePolicyDocument:
@@ -27,29 +27,12 @@ Resources:
             Action:
               - 'sts:AssumeRole'
       Path: /
-      Policies:
-        - PolicyName: root
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action: '*'
-                Resource: '*'
       Tags:
         - Key: course-work
           Value: "true"
         - Key: nd
           Value: cdoe
 
-  ProfileWithRolesForOurApp:
-    Type: AWS::IAM::InstanceProfile
-    DependsOn:
-      - UdacityS3ReadOnlyEC2
-    Properties: 
-      Roles:
-        - "UdacityS3ReadOnlyEC2"
-    
-  # Basition Host Disabled for Production
   BastionRole:
     Type: AWS::IAM::Role
     Properties: 
@@ -64,7 +47,27 @@ Resources:
             Action: 
               - "sts:AssumeRole"
       Path: "/"
-  # Basition Host Disabled for Production        
+      Tags:
+        - Key: course-work
+          Value: "true"
+        - Key: nd
+          Value: cdoe      
+
+  UdagramWebS3Policy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: UdagramWebS3Policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 's3:Get*'
+              - 's3:List*'
+            Resource: '*'
+      Roles:
+        - !Ref UdagramWebRole
+  
   BastionPolicy:
     Type: AWS::IAM::Policy
     Properties:
@@ -77,7 +80,14 @@ Resources:
             Resource: '*'
       Roles: 
         - !Ref BastionRole
-  # Basition Host Disabled for Production    
+
+
+  UdagramWebServerProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      Roles:
+        - !Ref UdagramWebRole
+ 
   BastionProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
@@ -113,6 +123,6 @@ Outputs:
       Name: !Sub "${NameOfApp}-BasProfile"
   UdaWebProfile:
     Description: The Name of the Instance Profile
-    Value: !Ref ProfileWithRolesForOurApp
+    Value: !Ref UdagramWebServerProfile
     Export:
       Name: !Sub "${NameOfApp}-WebProfile"
