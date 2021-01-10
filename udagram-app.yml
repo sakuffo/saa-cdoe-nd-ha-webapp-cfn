@@ -118,8 +118,8 @@ Resources:
         Fn::ImportValue: !Sub "${NameOfApp}-VPCID"
       SecurityGroupIngress:
       - IpProtocol: tcp
-        FromPort: 22
-        ToPort: 22
+        FromPort: 0
+        ToPort: 65535
         CidrIp: !Ref UserIp
       - IpProtocol: tcp
         FromPort: 22
@@ -127,8 +127,8 @@ Resources:
         SourceSecurityGroupId: !Ref UdaPrivateSG
       SecurityGroupEgress:
       - IpProtocol: tcp
-        FromPort: 22
-        ToPort: 22
+        FromPort: 0
+        ToPort: 65535
         CidrIp: !Ref UserIp
       - IpProtocol: tcp
         FromPort: 22
@@ -155,10 +155,10 @@ Resources:
           ToPort: 80
           SourceSecurityGroupId: !Ref UdaPublicSG
       SecurityGroupEgress:
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          DestinationSecurityGroupId: !Ref UdaPublicSG
+      - IpProtocol: tcp
+        FromPort: 0
+        ToPort: 65535
+        CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
           Value: !Sub ${NameOfApp}-PRIV-SG
@@ -168,12 +168,8 @@ Resources:
     Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
     Properties:
       Subnets: 
-        - Fn::ImportValue: 
-            !Sub "${NameOfApp}-PUB-NET-A"
-        - Fn::ImportValue: 
-            !Sub "${NameOfApp}-PUB-NET-B"
-        - Fn::ImportValue: 
-            !Sub "${NameOfApp}-PUB-NET-C"
+        - Fn::ImportValue: !Sub "${NameOfApp}-PUB-NET-A"
+        - Fn::ImportValue: !Sub "${NameOfApp}-PUB-NET-B"
       Name: UdaALB
       Scheme: internet-facing
       SecurityGroups:
@@ -201,14 +197,14 @@ Resources:
   UdaALBTG:
     Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
     Properties:
-      HealthCheckIntervalSeconds: 30
+      HealthCheckIntervalSeconds: 10
       HealthCheckPath: /
       HealthCheckProtocol: HTTP
-      HealthCheckTimeoutSeconds: 6
+      HealthCheckTimeoutSeconds: 8
       HealthyThresholdCount: 2
       Port: 80
       Protocol: HTTP
-      UnhealthyThresholdCount: 3
+      UnhealthyThresholdCount: 5
       VpcId: 
         Fn::ImportValue: !Sub "${NameOfApp}-VPCID"
       Tags:
@@ -218,8 +214,8 @@ Resources:
           Value: private
 
 # EC2
-#   Basition Host Disabled for Production
 
+#   Basition Host Disabled for Production
   BastionHost:
     Type: AWS::EC2::Instance
     Condition: CreateBastionHost
@@ -251,17 +247,14 @@ Resources:
           unzip awscliv2.zip
           ./aws/install
           apt-get install ec2-instance-connect
-          
+
+# ASG Servers          
   UdaWebServerGroup:
     Type: 'AWS::AutoScaling::AutoScalingGroup'
     Properties:
       VPCZoneIdentifier:
         - Fn::ImportValue: 
-            !Sub "${NameOfApp}-PRIV-NET-A"
-        - Fn::ImportValue: 
-            !Sub "${NameOfApp}-PRIV-NET-B"
-        - Fn::ImportValue: 
-            !Sub "${NameOfApp}-PRIV-NET-C"
+            !Sub "${NameOfApp}-PRIV-NETS"
       LaunchConfigurationName: !Ref UdaLaunchConfig
       MinSize: !Ref UdaWebServerMin
       MaxSize: !Ref UdaWebServerMax
@@ -286,21 +279,31 @@ Resources:
           Ebs:
             VolumeSize: 10
       UserData:
-        Fn::Base64: |
+        Fn::Base64: !Sub |
           #!/bin/bash
           apt-get update -y
-          apt-get install unzip -y
-          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-          unzip awscliv2.zip
-          ./aws/install
+          apt-get install unzip awscli -y
           apt-get install apache2 -y
           systemctl start apache2.service
           cd /var/www/html
           aws s3 cp s3://udacity-demo-1/udacity.zip .
           unzip -o udacity.zip
-          apt-get install ec2-instance-connect
 Outputs:
   UdaALBDNS:
     Description: The DNS of the App through ALB
     Value: 
       Fn::Join: ["", ["http://", !GetAtt UdaALB.DNSName] ]
+
+
+
+          # apt-get update -y
+          # apt-get install unzip -y
+          # apt-get install apache2 -y
+          # systemctl start apache2.service
+          # cd /var/www/html
+          # aws s3 cp s3://udacity-demo-1/udacity.zip .
+          # unzip -o udacity.zip
+          # curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          # unzip awscliv2.zip
+          # ./aws/install
+          # apt-get install ec2-instance-connect

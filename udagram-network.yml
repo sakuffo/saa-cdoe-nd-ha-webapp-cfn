@@ -10,11 +10,11 @@ Parameters:
   PubCidrBlocks:
     Type: CommaDelimitedList
     Description: The Cidr range of the Public Range. Please note, it must fall within your VPC Cidr range.
-    Default: "10.7.30.0/24, 10.7.31.0/24, 10.7.32.0/24"
+    Default: "10.7.30.0/24, 10.7.31.0/24"
   PrivCidrBlocks:
     Type: CommaDelimitedList
     Description: The Cidr range of the Public Range. Please note, it must fall within your VPC Cidr range.
-    Default: "10.7.60.0/24, 10.7.61.0/24, 10.7.62.0/24"
+    Default: "10.7.60.0/24, 10.7.61.0/24"
 
 
 Resources:
@@ -25,12 +25,65 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${NameOfApp}-IGW
+
   UdaIGWAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
     Properties:
       InternetGatewayId: !Ref UdaIGW
       VpcId: 
         Fn::ImportValue: !Sub "${NameOfApp}-VPCID"
+
+# NAT
+  UdaNatGatwayEIPA:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-EIP
+        - Key: course-work
+          Value: "true"
+        - Key: nd
+          Value: cdoe
+  
+  UdaNatGatwayEIPB:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-EIP
+        - Key: course-work
+          Value: "true"
+        - Key: nd
+          Value: cdoe
+  
+  
+  UdaNatGatwayA:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt UdaNatGatwayEIPA.AllocationId
+      SubnetId: !Ref UdaPublicSubnetA
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-NAT-A
+        - Key: course-work
+          Value: "true"
+        - Key: nd
+          Value: cdoe
+
+  UdaNatGatwayB:
+      Type: AWS::EC2::NatGateway
+      Properties:
+        AllocationId: !GetAtt UdaNatGatwayEIPB.AllocationId
+        SubnetId: !Ref UdaPublicSubnetA
+        Tags:
+          - Key: Name
+            Value: !Sub ${NameOfApp}-NAT-B
+          - Key: course-work
+            Value: "true"
+          - Key: nd
+            Value: cdoe
 
 # Public Subnets
   UdaPublicSubnetA:
@@ -63,23 +116,6 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${NameOfApp}-PUB-NET-B
-        - Key: program
-          Value: cdoe
-        - Key: scope
-          Value: public
-  UdaPublicSubnetC:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId:
-        Fn::ImportValue: !Sub "${NameOfApp}-VPCID"
-      AvailabilityZone: !Select 
-        - 2
-        - Fn::GetAZs: !Ref 'AWS::Region'
-      MapPublicIpOnLaunch: true
-      CidrBlock: !Select [2, !Ref PubCidrBlocks]
-      Tags:
-        - Key: Name
-          Value: !Sub ${NameOfApp}-PUB-NET-C
         - Key: program
           Value: cdoe
         - Key: scope
@@ -118,22 +154,7 @@ Resources:
           Value: cdoe
         - Key: scope
           Value: private
-  UdaPrivateSubnetC:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId:
-        Fn::ImportValue: !Sub "${NameOfApp}-VPCID"
-      AvailabilityZone: !Select 
-        - 2
-        - Fn::GetAZs: !Ref 'AWS::Region'
-      CidrBlock: !Select [2, !Ref PrivCidrBlocks]
-      Tags:
-        - Key: Name
-          Value: !Sub ${NameOfApp}-PRIV-NET-C
-        - Key: program
-          Value: cdoe
-        - Key: scope
-          Value: private
+
   
 # Routes
   UdaPublicRouteTable:
@@ -148,7 +169,19 @@ Resources:
           Value: public
       VpcId:
         Fn::ImportValue: !Sub "${NameOfApp}-VPCID"
-  UdaPrivateRouteTable:
+  UdaPrivateRouteTableA:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${NameOfApp}-PrivateRT
+        - Key: program
+          Value: cdoe
+        - Key: scope
+          Value: private
+      VpcId:
+        Fn::ImportValue: !Sub "${NameOfApp}-VPCID"
+  UdaPrivateRouteTableB:
     Type: AWS::EC2::RouteTable
     Properties:
       Tags:
@@ -166,12 +199,18 @@ Resources:
       RouteTableId: !Ref UdaPublicRouteTable
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref UdaIGW
-  UdaPrivateRoute:
+  UdaPrivateRouteA:
     Type: AWS::EC2::Route
     Properties:
-      RouteTableId: !Ref UdaPrivateRouteTable
+      RouteTableId: !Ref UdaPrivateRouteTableA
       DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref UdaNatGatway
+      NatGatewayId: !Ref UdaNatGatwayA
+  UdaPrivateRouteB:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref UdaPrivateRouteTableB
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref UdaNatGatwayB
 
   UdaPublicRouteAssocA:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -183,52 +222,17 @@ Resources:
     Properties:
       SubnetId: !Ref UdaPublicSubnetB
       RouteTableId: !Ref UdaPublicRouteTable
-  UdaPublicRouteAssocC:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref UdaPublicSubnetC
-      RouteTableId: !Ref UdaPublicRouteTable
 
   UdaPrivateRouteAssocA:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref UdaPrivateSubnetA
-      RouteTableId: !Ref UdaPrivateRouteTable
+      RouteTableId: !Ref UdaPrivateRouteTableA
   UdaPrivateRouteAssocB:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref UdaPrivateSubnetB
-      RouteTableId: !Ref UdaPrivateRouteTable
-  UdaPrivateRouteAssocC:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref UdaPrivateSubnetC
-      RouteTableId: !Ref UdaPrivateRouteTable
-
-# NAT
-  UdaNatGatwayEIP:
-    Type: AWS::EC2::EIP
-    Properties:
-      Domain: vpc
-      Tags:
-        - Key: Name
-          Value: !Sub ${NameOfApp}-EIP
-        - Key: course-work
-          Value: "true"
-        - Key: nd
-          Value: cdoe
-  UdaNatGatway:
-    Type: AWS::EC2::NatGateway
-    Properties:
-      AllocationId: !GetAtt UdaNatGatwayEIP.AllocationId
-      SubnetId: !Ref UdaPublicSubnetA
-      Tags:
-        - Key: Name
-          Value: !Sub ${NameOfApp}-NAT
-        - Key: course-work
-          Value: "true"
-        - Key: nd
-          Value: cdoe
+      RouteTableId: !Ref UdaPrivateRouteTableB
 
 Outputs:
   UdaPrivSubnetA:
@@ -241,11 +245,11 @@ Outputs:
     Value: !Ref UdaPrivateSubnetB
     Export:
       Name: !Sub "${NameOfApp}-PRIV-NET-B"
-  UdaPrivSubnetC:
+  UdaPrivSubnetNets:
     Description: The ID of the VPC
-    Value: !Ref UdaPrivateSubnetC
+    Value: !Join [ ",", [ !Ref UdaPrivateSubnetA, !Ref UdaPrivateSubnetB ]]
     Export:
-      Name: !Sub "${NameOfApp}-PRIV-NET-C"
+      Name: !Sub "${NameOfApp}-PRIV-NETS"
   UdaPubSubnetA:
     Description: The ID of the VPC
     Value: !Ref UdaPublicSubnetA
@@ -256,8 +260,3 @@ Outputs:
     Value: !Ref UdaPublicSubnetB
     Export:
       Name: !Sub "${NameOfApp}-PUB-NET-B"
-  UdaPubSubnetC:
-    Description: The ID of the VPC
-    Value: !Ref UdaPublicSubnetC
-    Export:
-      Name: !Sub "${NameOfApp}-PUB-NET-C"
