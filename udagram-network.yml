@@ -248,7 +248,7 @@ Outputs:
     Value: !Ref UdaPrivateSubnetB
     Export:
       Name: !Sub "${NameOfApp}-PRIV-NET-B"
-  UdaPrivSubnetNets:
+  UdaPrivSubnets:
     Description: The ID of the VPC
     Value: !Join [ ",", [ !Ref UdaPrivateSubnetA, !Ref UdaPrivateSubnetB ]]
     Export:
@@ -263,3 +263,8 @@ Outputs:
     Value: !Ref UdaPublicSubnetB
     Export:
       Name: !Sub "${NameOfApp}-PUB-NET-B"
+  UdaPubSubnets:
+    Description: The ID of the VPC
+    Value: !Join [ ",", [ !Ref UdaPublicSubnetA, !Ref UdaPublicSubnetB ]]
+    Export:
+      Name: !Sub "${NameOfApp}-PUB-NETS"
